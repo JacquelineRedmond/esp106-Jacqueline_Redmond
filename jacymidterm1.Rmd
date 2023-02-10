@@ -1,0 +1,190 @@
+---
+title: "Midterm One"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(knitr)
+```
+
+In this midterm we will analyze some data on the conservation status of species in North America and spending under the Endangered Species Act. 
+
+Answer the following questions by using chunks of R code. Comment on what your code does. Make sure to add informative axis titles and, where appropriate, units to your answers. Upload the R markdown file and knitted output to Canvas. 
+
+We will use the file `conservationdata.csv`. This dataset has information on North American species. It has five variables that are described in the table below.
+
+
+```{r, echo=FALSE}
+tab <- cbind(Name=c("speciesid", "speciesname", "taxon", "conservation status", "listed"), Description = c("unique ID", "scientific name", "Species group", "Conservation status in North America, according to   [NatureServe](https://www.natureserve.org/conservation-tools/conservation-rank-calculator): 1 = Critically Imperiled; 2 = Imperiled; 3 = Vulnerable; 4 = Apparently Secure; 5 = Secure; UNK = Unknown; Prob. Extinct = Probably Extinct; Extinct", "Is the species listed as threatened or endangered under the US Endangered Species Act: 0 = No; 1 = Yes"))
+
+knitr::kable(tab, caption ='Table 1. Variables in "consevationdata.csv"' )
+```
+
+
+####Read the file `conservationdata.csv`
+
+```{r}
+setwd('/Users/jacy/Desktop/midtermesp106/')
+
+conserv <- read.csv('conservationdata.csv')
+str(conserv)
+```
+
+###1. What fraction of species in the dataset are listed under the Endangered Species Act? (2 points)
+
+```{r}
+
+undersact <- nrow(subset(conserv, listed == '1')) / nrow(conserv)
+str(undersact)
+
+```
+***3.01% are under the act***
+###2. Show how many (absolute and relative) species there are for each taxonomic group by making a data.frame in which the first column has the taxonomic groups, the second column is the number of species in that group, and the third column is the percentage of all species in that group.
+
+```{r}
+first_column <- conserv$taxon
+second_column <- table(conserv$taxon)
+third_column <- table(conserv$taxon)/ nrow(conserv)
+
+absrel <- data.frame(first_column, second_column, third_column)
+
+head(absrel)
+
+```
+###3a) One interesting question is how the conservation status varies between different taxonomic groups. Make a plot showing the relative distribution of conservation status within each taxonomic group. There should be descriptive legend (with words, not with the numeric codes) (3 points)
+```{r}
+
+ggplot(conserv, aes(x = taxon, y = conservation_status)) +
+  geom_count(aes(col = taxon)) + 
+  labs(x="Taxonomic group",y="Relative distribution") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  geom_smooth(method="lm") +
+  ggtitle("Relative distribution of conservation \n status across taxonomic groups")
+
+```
+
+You can use a "base" plotting method, or ggplot. 
+
+If you are using ggplot, stat="count" (counts up and plots the number of observations, i.e. species, within each group) and position="fill" might both be useful.
+
+###3b) Based on this graph, what is something we might be concerned about in terms of analyzing the data on conservation status, particularly for fungi and invertebrates? (1 point)
+
+**The conservation status of fungi and invertebrates is largely categorized as unknowns so our data about them is innaccurate because we have not researched them enough** 
+
+Read in the second data file: `spendingdata.csv`
+```{r}
+
+spending <-read.csv('spendingdata.csv')
+
+#str(spending)
+
+```
+
+This dataset has a species ID that matches the species ID in the conservation dataset (speciesid), year, and the spending on conservation of that species (expressed in in 2015 dollars, i.e., accounting for inflation)
+
+
+###4a) Make a plot showing the distribution of spending in the year 2016 (3 points)
+
+```{r}
+#both <- merge(conserv, spending, by = "speciesid")
+
+#year16 <- subset(both, Year == '2016')
+year16 <- subset(spending, Year == '2016')
+#class(year16)
+
+# ggplot(spending, aes(x = "spending", y = "speciesid")) +
+#   geom_dotplot() 
+
+ggplot(data = year16, aes(x = spending, y = speciesid)) +
+  geom_point()
+
+
+#   geom_dotplot() +
+#   labs(x="Distribution of spending over 2016/ for different species", y= "Money spent")
+
+# class(year16$speciesid)
+# class(year16$Year)
+# class(year16$spending)
+
+```
+
+###4b) Notice the (very) long right tail on spending data - we spend a lot on a very small number of species. Show the IDs of the 3 species with the most spending in 2016. (2 points)
+```{r}
+
+sorted <- sort(year16$spending,decreasing=TRUE)
+head(sorted)
+
+#[1] 255893066.33 229175092.17  54122670.52
+
+#year16[spending, head(sort(year16$spending,decreasing=TRUE),n=3)]
+
+highspending <- subset(year16, spending > 46811029)
+highspending
+
+```
+**2220, 2095, and 2670**
+
+###5. Merge in the data from the conservation status data frame to the spending data frame, so that we have information on species names, taxonomic group, and conservation status with the spending data. (2 points); and use that to show the scientific names of the three species identified above.
+
+```{r}
+both <- merge(conserv, spending, by = "speciesid")
+
+highspending <- subset(both, spending > 46811029)
+highspending
+
+
+# sname1 <- both
+# sname2 <- subset(both, spending = 54122671)
+# sname3 <- subset(both, spending = 46811029)
+
+```
+**Oncorhynchus tshawytscha, Oncorhynchus kisutch, Scaphirhynchus albus**
+
+Look up these scientific names - what is the common name for these species?
+
+**chinook salmon, coho salmon, pallid sturgeon** 
+
+###6. Finally, we will use a regression to look at the relationship between spending and species taxon.
+
+Because the distribution of spending is very right-skewed, it would be a good idea to take the logarithm of spending before using it in a regression. 
+
+Remember that log(0)=infinity. That means we have to drop observations with zero spending before taking the logarithm.
+
+####a) Drop the rows where spending == 0 from the data frame and then make a new column with the logarithm (log()) of spending in each year. (2 points)
+```{r}
+#year16 <- subset(year16, spending > 0)
+both2 <- subset(both, spending > 0)
+
+#year16$logspend <- log(year16$spending)
+both2$logspend <- log(both2$spending)
+  
+ggplot(data = both2, aes(x = logspend, y = speciesid)) +
+  geom_point(size =.5)
+
+```
+
+Optional: Look at the distribution of the logged spending variable and see how it looks different from the plot you made in question 4a
+
+####b) Run a regression of logged spending on taxonomic group and print the summary for the regression below (3 points)
+
+```{r}
+ggplot(data = both2, aes(x = logspend, y = speciesid)) +
+  geom_point(size = .5) +
+  geom_smooth(method="lm") +
+  ggtitle("Logged spending on taxonomic groups") +
+  geom_count(aes(col = speciesid))
+
+```
+
+
+###c) The way to interpret these coefficients are as the fractional difference in spending between the taxonomic group (e.g. Birds, Fishes etc) and the "dropped" group, where by default the dropped group will be Amphibians. Positive numbers indicate that group has more spent on it than Amphibians and negative numbers indicate it has less spent on it. 
+
+Based on your results in b, do we see statistically significant differences in spending between different taxonomic groups? If so, which kinds of species tend to have more spent on them and which have less? (1 points)
+
+**There is much more spending for species with lower speciesids** 
+
+7. Push your R markdown file to your Github repository (2 points)
+
